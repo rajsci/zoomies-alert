@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 240" role="img" aria-label="Zoomies">
+  <circle cx="120" cy="120" r="104" fill="#E4373F"/>
+  <!-- speed lines -->
+  <path d="M26 128h30M38 150h26M26 172h22" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" opacity=".85"/>
+  <!-- steam -->
+  <path d="M104 70c-10-12 10-18 0-32M128 70c-10-12 10-18 0-32M152 70c-10-12 10-18 0-32" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
+  <!-- bowl, tilted forward as if moving -->
+  <g transform="rotate(-8 128 132)">
+    <path d="M66 104h124c0 40-26 66-62 66s-62-26-62-66z" fill="#FFFFFF"/>
+    <rect x="98" y="172" width="60" height="10" rx="5" fill="#FFFFFF"/>
+  </g>
+  <text x="256" y="152" fill="#2B2D42" font-family="'DM Sans', Arial, sans-serif" font-weight="700" font-size="116" letter-spacing="-2">Zoomies</text>
+  <text x="262" y="198" fill="#E4373F" font-family="'DM Sans', Arial, sans-serif" font-weight="700" font-size="34" letter-spacing="4">HOT FOOD, FAST</text>
+</svg>
