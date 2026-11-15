@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#E4373F">
+  <title>Late Orders | Zoomies</title>
+  <style>
+    :root { color-scheme: light; --red: #E4373F; --ink: #303238; --muted: #737780; --line: #e5e6e8; --soft: #fff3f3; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f5f5f6; color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    header { background: white; border-bottom: 1px solid var(--line); }
+    .topbar { max-width: 1000px; margin: auto; padding: 18px 24px; display:flex; align-items:center; }
+    .logo { display:block; width: 158px; height: auto; }
+    main { max-width: 1000px; margin: 42px auto; padding: 0 24px 48px; }
+    .intro { margin-bottom: 24px; }
+    h1 { margin:0 0 4px; font-size: clamp(1.8rem,4vw,2.4rem); letter-spacing:-.04em; }
+    .intro p, .hint { margin:0; color:var(--muted); }
+    .panel { background:white; border:1px solid var(--line); border-radius:14px; padding:22px; box-shadow:0 3px 14px #2528330a; }
+    .controls { display:flex; gap:18px; align-items:end; flex-wrap:wrap; }
+    label { display:grid; gap:7px; font-weight:650; }
+    input[type="time"], input[type="file"] { min-height:44px; font:inherit; }
+    input[type="time"] { padding:7px 11px; border:1px solid #c9cbd0; border-radius:8px; color:var(--ink); }
+    input[type="file"] { max-width:100%; color:var(--muted); }
+    button { border:0; border-radius:8px; background:var(--red); color:white; min-height:44px; padding:0 20px; font:700 1rem inherit; cursor:pointer; }
+    button:hover { background:#c92e35; } button:focus-visible, input:focus-visible { outline:3px solid #e4373f55; outline-offset:2px; }
+    .hint { font-size:.9rem; margin-top:13px; }
+    .notice { margin:18px 0 0; padding:12px 14px; border-radius:8px; background:#f5f5f6; color:var(--ink); }
+    .notice.error { background:#fff0f0; color:#a52028; }
+    .summary { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:30px 0 12px; }
+    .summary h2 { margin:0; font-size:1.25rem; }
+    .count { display:inline-grid; place-items:center; min-width:34px; height:34px; padding:0 9px; border-radius:999px; background:var(--soft); color:var(--red); font-weight:750; }
+    .table-wrap { overflow-x:auto; background:white; border:1px solid var(--line); border-radius:12px; }
+    table { width:100%; border-collapse:collapse; min-width:650px; text-align:left; }
+    th,td { padding:13px 16px; border-bottom:1px solid var(--line); }
+    th { color:var(--muted); font-size:.82rem; text-transform:uppercase; letter-spacing:.04em; background:#fafafa; }
+    tbody tr:last-child td { border-bottom:0; }
+    .late-tag { color:#b5222a; font-weight:700; }
+    .empty { padding:24px 16px; text-align:center; color:var(--muted); }
+    footer { color:var(--muted); font-size:.88rem; padding-top:18px; }
+    @media(max-width:600px) { main { margin-top:28px; padding-inline:16px; } .topbar { padding-inline:16px; } .panel { padding:17px; } .controls { align-items:stretch; flex-direction:column; } button { width:100%; } }
+  </style>
+</head>
+<body>
+  <header><div class="topbar"><img class="logo" src="zoomies-logo.svg" alt="Zoomies"></div></header>
+  <main>
+    <section class="intro" aria-labelledby="page-title">
+      <h1>Late order check</h1>
+      <p>Meera’s team · Review orders that have passed their delivery promise.</p>
+    </section>
+
+    <section class="panel" aria-label="Choose orders and time">
+      <div class="controls">
+        <label for="orders-file">Orders CSV
+          <input id="orders-file" type="file" accept=".csv,text/csv">
+        </label>
+        <label for="check-time">Check time · 16 October 2026
+          <input id="check-time" type="time" value="16:10" min="00:00" max="23:59" required>
+        </label>
+        <button id="check-button" type="button">Show late orders</button>
+      </div>
+      <p class="hint">Choose orders.csv from your computer. The file is read in this browser and is not uploaded.</p>
+      <div id="status" class="notice" role="status" aria-live="polite">Select a CSV to get started. You can also place orders.csv beside this page for automatic loading when hosted.</div>
+    </section>
+
+    <section aria-labelledby="results-title">
+      <div class="summary"><h2 id="results-title">Orders running late</h2><span id="result-count" class="count" aria-label="Late order count">0</span></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Order</th><th>Restaurant</th><th>Promised by</th><th>Delivered at</th><th>Partner</th><th>Status</th></tr></thead>
+          <tbody id="results"><tr><td class="empty" colspan="6">Load an orders CSV and choose a check time.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+    <footer>Late means the promised time is earlier than the selected time and the order was still undelivered then, matching late_alert.py.</footer>
+  </main>
+
+  <script>
+    "use strict";
+    const REQUIRED = ["order_id", "restaurant", "placed_at", "promised_by", "delivered_at", "delivery_partner"];
+    const fileInput = document.getElementById("orders-file");
+    const timeInput = document.getElementById("check-time");
+    const statusBox = document.getElementById("status");
+    const resultBody = document.getElementById("results");
+    const countBadge = document.getElementById("result-count");
+    let orders = null;
+
+    function parseCsv(text) {
+      const rows = [];
+      let row = [], cell = "", quoted = false;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (quoted) {
+          if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+          else if (ch === '"') quoted = false;
+          else cell += ch;
+        } else if (ch === '"' && cell === "") quoted = true;
+        else if (ch === ",") { row.push(cell); cell = ""; }
+        else if (ch === "\n" || ch === "\r") {
+          if (ch === "\r" && text[i + 1] === "\n") i++;
+          row.push(cell); if (row.some(value => value.trim() !== "")) rows.push(row);
+          row = []; cell = "";
+        } else cell += ch;
+      }
+      row.push(cell); if (row.some(value => value.trim() !== "")) rows.push(row);
+      if (!rows.length) throw new Error("The CSV is empty.");
+      const headers = rows.shift().map((value, index) => (index === 0 ? value.replace(/^\uFEFF/, "") : value).trim());
+      const missing = REQUIRED.filter(name => !headers.includes(name));
+      if (missing.length) throw new Error("Missing required columns: " + missing.join(", "));
+      return rows.map((values, index) => {
+        const order = Object.fromEntries(headers.map((header, col) => [header, (values[col] || "").trim()]));
+        for (const key of ["placed_at", "promised_by"]) {
+          if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(order[key]) || Number.isNaN(Date.parse(order[key].replace(" ", "T"))))
+            throw new Error(`Invalid ${key} timestamp on CSV row ${index + 2}; expected YYYY-MM-DD HH:MM.`);
+        }
+        if (order.delivered_at && (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(order.delivered_at) || Number.isNaN(Date.parse(order.delivered_at.replace(" ", "T")))))
+          throw new Error(`Invalid delivered_at timestamp on CSV row ${index + 2}; expected YYYY-MM-DD HH:MM.`);
+        return order;
+      });
+    }
+
+    function showMessage(message, isError = false) {
+      statusBox.textContent = message;
+      statusBox.className = isError ? "notice error" : "notice";
+    }
+
+    function render() {
+      if (!orders) { showMessage("Choose an orders CSV first.", true); return; }
+      if (!timeInput.value) { showMessage("Choose a time on 16 October 2026.", true); return; }
+      const asOf = new Date(`2026-10-16T${timeInput.value}:00`);
+      const late = orders.filter(order => {
+        const promised = new Date(order.promised_by.replace(" ", "T") + ":00");
+        const delivered = order.delivered_at ? new Date(order.delivered_at.replace(" ", "T") + ":00") : null;
+        return promised < asOf && (!delivered || delivered > asOf);
+      });
+      countBadge.textContent = String(late.length);
+      resultBody.replaceChildren();
+      if (!late.length) {
+        const tr = document.createElement("tr"), td = document.createElement("td");
+        td.colSpan = 6; td.className = "empty"; td.textContent = "No orders were running late at this time.";
+        tr.append(td); resultBody.append(tr);
+      } else {
+        for (const order of late) {
+          const tr = document.createElement("tr");
+          const values = [order.order_id, order.restaurant, order.promised_by.slice(11), order.delivered_at || "Not delivered", order.delivery_partner];
+          for (const value of values) { const td = document.createElement("td"); td.textContent = value; tr.append(td); }
+          const status = document.createElement("td"); status.className = "late-tag"; status.textContent = "Late"; tr.append(status);
+          resultBody.append(tr);
+        }
+      }
+      showMessage(`${late.length} late ${late.length === 1 ? "order" : "orders"} at 16 October 2026, ${timeInput.value}.`);
+    }
+
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files[0]; if (!file) return;
+      try { orders = parseCsv(await file.text()); showMessage(`Loaded ${orders.length} orders from ${file.name}.`); render(); }
+      catch (error) { orders = null; countBadge.textContent = "0"; resultBody.replaceChildren(); showMessage(error.message, true); }
+    });
+    document.getElementById("check-button").addEventListener("click", render);
+    timeInput.addEventListener("change", () => { if (orders) render(); });
+
+    fetch("orders.csv").then(response => {
+      if (!response.ok) throw new Error("No hosted orders.csv");
+      return response.text();
+    }).then(text => {
+      orders = parseCsv(text); showMessage(`Loaded ${orders.length} orders from orders.csv.`); render();
+    }).catch(() => {});
+  </script>
+</body>
+</html>
